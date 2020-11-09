@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH -J MPI32
+#SBATCH --qos=normal
+#SBATCH -N 8
+#SBATCH --ntasks-per-node=32
+#SBATCH --cpus-per-task=1
+#SBATCH -t 1:00:00
+#SBATCH -A changroup
+#SBATCH --mem=300gb
+#SBATCH --exclusive
+module list
+pwd
+date
+export MPI_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export CTF_PPN=32
+export CTF_MEMORY_SIZE=302122547000
+mpirun -np 256 python3 ./run.py > out256

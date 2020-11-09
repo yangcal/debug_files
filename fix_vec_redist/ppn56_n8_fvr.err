@@ -1,0 +1,14 @@
+Currently Loaded Modulefiles:
+  1) mkl/18.1        2) intel/18.1      3) python3/3.7.0
+slurmstepd: error: Detected 10 oom-kill event(s) in step 12017236.0 cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+srun: error: hpc-82-21: task 7: Out Of Memory
+slurmstepd: error: Detected 2 oom-kill event(s) in step 12017236.0 cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+slurmstepd: error: Detected 2 oom-kill event(s) in step 12017236.0 cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+slurmstepd: error: Detected 99 oom-kill event(s) in step 12017236.0 cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+slurmstepd: error: Detected 17955 oom-kill event(s) in step 12017236.0 cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+slurmstepd: error: Detected 1 oom-kill event(s) in step 12017236.0 cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+[mpiexec@hpc-82-13.cm.cluster] HYDT_bscu_wait_for_completion (../../tools/bootstrap/utils/bscu_wait.c:151): one of the processes terminated badly; aborting
+[mpiexec@hpc-82-13.cm.cluster] HYDT_bsci_wait_for_completion (../../tools/bootstrap/src/bsci_wait.c:36): launcher returned error waiting for completion
+[mpiexec@hpc-82-13.cm.cluster] HYD_pmci_wait_for_completion (../../pm/pmiserv/pmiserv_pmci.c:527): launcher returned error waiting for completion
+[mpiexec@hpc-82-13.cm.cluster] main (../../ui/mpich/mpiexec.c:1148): process manager error waiting for completion
+slurmstepd: error: Detected 2 oom-kill event(s) in step 12017236.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
