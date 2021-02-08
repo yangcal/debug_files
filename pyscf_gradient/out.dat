@@ -1,0 +1,1069 @@
+Discarded 4 diffused primitive functions, 8 contracted functions
+#INFO: **** input file is /home/yang/tmp/run/run.py ****
+#!/usr/bin/env python
+# Copyright 2014-2020 The PySCF Developers. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+from pyscf.pbc import scf, dft, gto, grad, df
+from pyscf.eph.rhf import solve_hmat
+from pyscf.eph.eph_fd import gen_moles
+import numpy as np
+import scipy
+from pyscf.lib import logger
+import copy
+
+def gen_cell(atom):
+    cell = gto.Cell()
+    cell.atom = atom
+    cell.basis = 'gth-tzvp'
+    cell.pseudo = 'gth-pade'
+    cell.a = '''
+    0.000000000, 3.370137329, 3.370137329
+    3.370137329, 0.000000000, 3.370137329
+    3.370137329, 3.370137329, 0.000000000'''
+    cell.unit = 'B'
+    cell.verbose = 4
+    cell.exp_to_discard=0.1
+    cell.precision=1e-12
+    cell.build()
+    return cell
+
+if __name__ == '__main__':
+    disp = 1e-4
+    # this is a cell slightly displaced from equlibrium. 
+    atom_0 =  [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+               ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    cell = gen_cell(atom_0)
+    kpts = cell.make_kpts([1,1,1])
+    mf = dft.KRKS(cell, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    mf.kernel()
+    # computing analytical force
+    force = mf.nuc_grad_method().kernel()
+
+    # displace +/- in the z direction on the 1st C
+    atom_c0_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000+disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    atom_c0_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000-disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    # compute energy for these cells with displacement on 1st C
+    cell_c0_plus = gen_cell(atom_c0_plus)
+    mf = dft.KRKS(cell_c0_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_plus = mf.kernel()
+
+    cell_c0_min = gen_cell(atom_c0_min)
+    mf = dft.KRKS(cell_c0_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_min = mf.kernel()
+    
+    # finite differnce force on 1st C
+    force_c0 = (e_c0_plus-e_c0_min) / disp
+
+    # displace +/- in the z direction on the 2nd C
+    atom_c1_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391+disp/2.0]]]
+
+    atom_c1_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391-disp/2.0]]]
+    
+    # compute energy for these cells with displacement on 2nd C
+    cell_c1_plus = gen_cell(atom_c1_plus)
+    mf = dft.KRKS(cell_c1_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_plus = mf.kernel()
+
+    cell_c1_min = gen_cell(atom_c1_min)
+    mf = dft.KRKS(cell_c1_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_min = mf.kernel()
+    
+    # finite differnce force on 2nd C
+    force_c1 = (e_c1_plus-e_c1_min) / disp
+    print("Analytical force:")
+    print(force)
+    print("===========")
+    print("finite difference",force_c0, force_c1)
+    print("difference with analytical gradients:")
+    print(abs(force_c0-force[0][2]), abs(force_c1-force[1][2]))
+    print("net force within the cell:", force_c0+force_c1)
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='pauling050', release='3.10.0-327.36.3.el7.x86_64', version='#1 SMP Thu Oct 20 04:56:07 EDT 2016', machine='x86_64', processor='x86_64')  Threads 28
+Python 3.7.4 (default, Aug 13 2019, 20:35:49) 
+[GCC 7.3.0]
+numpy 1.19.1  scipy 1.5.2
+Date: Wed Nov 11 15:38:26 2020
+PySCF version 1.7.4
+PySCF path  /home/yang/software/pyscf/pyscf
+GIT HEAD      ref: refs/heads/master
+GIT master branch  da6d2cbd7ce021fb3b5d74baa94c0df9699058d3
+
+[ENV] PYSCF_TMPDIR /scratch/global/yang
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 2
+[INPUT] num. electrons = 8
+[INPUT] charge = 0
+[INPUT] spin (= nelec alpha-beta = 2S) = 0
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = B
+[INPUT]  1 C      0.000000000000   0.000000000000   0.000529177211 AA    0.000000000000   0.000000000000   0.001000000000 Bohr
+[INPUT]  2 C      0.891699936031   0.891699936031   0.891699936031 AA    1.685068664391   1.685068664391   1.685068664391 Bohr
+
+nuclear repulsion = -12.7871296244014
+number of shells = 6
+number of NR pGTOs = 42
+number of NR cGTOs = 18
+basis = gth-tzvp
+ecp = {}
+CPU time:         0.46
+lattice vectors  a1 [0.000000000, 3.370137329, 3.370137329]
+                 a2 [3.370137329, 0.000000000, 3.370137329]
+                 a3 [3.370137329, 3.370137329, 0.000000000]
+dimension = 3
+low_dim_ft_type = None
+Cell volume = 76.5549
+exp_to_discard = 0.1
+rcut = 16.83695699146311 (nimgs = [5 5 5])
+lattice sum = 2197 cells
+precision = 1e-12
+pseudo = gth-pade
+ke_cutoff = 409.624563819746
+    = [36 36 36] mesh (46656 PWs)
+ew_eta = 2.39214
+ew_cut = 3.4310758328450324 (nimgs = [1 1 1])
+
+
+******** <class 'pyscf.pbc.dft.krks.KRKS'> ********
+method = KRKS-KRHF-KSCF-RHF-SCF-RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-14
+SCF conv_tol_grad = 1e-08
+SCF max_cycles = 50
+direct_scf = False
+chkfile to save SCF result = /scratch/global/yang/tmprja6vems
+max_memory 4000 MB (current use 73 MB)
+
+
+******** PBC SCF flags ********
+N kpts = 1
+Exchange divergence treatment (exxdiv) = ewald
+    madelung (= occupied orbital energy shift) = 0.6802188793116848
+    Total energy shift due to Ewald probe charge = -1/2 * Nelec*madelung = -2.72087551725
+DF object = <pyscf.pbc.df.fft.FFTDF object at 0x7f4ce86aa690>
+
+
+******** <class 'pyscf.pbc.df.fft.FFTDF'> ********
+mesh = [36 36 36] (46656 PWs)
+len(kpts) = 1
+XC functionals = pbe,pbe
+small_rho_cutoff = 1e-07
+Uniform grid, mesh = [36 36 36]
+init E= -12.3378019575528
+HOMO = 0.452795250448  LUMO = 0.667435780789
+cycle= 1 E= -10.3550203505594  delta_E= 1.98  |g|= 0.0588  |ddm|= 3.68
+HOMO = 0.560274285889  LUMO = 0.753757441052
+cycle= 2 E= -10.3561514828803  delta_E= -0.00113  |g|= 0.000782  |ddm|= 0.094
+HOMO = 0.559118457458  LUMO = 0.753085783012
+cycle= 3 E= -10.3561516827463  delta_E= -2e-07  |g|= 1.58e-06  |ddm|= 0.00123
+HOMO = 0.559118575206  LUMO = 0.75308584635
+cycle= 4 E= -10.356151682746  delta_E= 2.84e-13  |g|= 2.15e-06  |ddm|= 4.71e-06
+HOMO = 0.559118596452  LUMO = 0.753085857684
+cycle= 5 E= -10.356151682747  delta_E= -1.07e-12  |g|= 6.05e-07  |ddm|= 3.41e-06
+HOMO = 0.559118640147  LUMO = 0.753085880916
+cycle= 6 E= -10.3561516827471  delta_E= -9.41e-14  |g|= 1.98e-09  |ddm|= 7.62e-07
+HOMO = 0.559118640004  LUMO = 0.753085880791
+cycle= 7 E= -10.3561516827471  delta_E= -1.78e-15  |g|= 1.33e-09  |ddm|= 1.83e-09
+HOMO = 0.559118639727  LUMO = 0.753085880564
+Extra cycle  E= -10.3561516827471  delta_E= 5.33e-15  |g|= 1.97e-09  |ddm|= 4.78e-09
+converged SCF energy = -10.3561516827471
+
+
+******** <class 'pyscf.pbc.grad.krks.Gradients'> for <class 'pyscf.pbc.dft.krks.KRKS'> ********
+unit = Eh/Bohr
+max_memory 4000 MB (current use 607 MB)
+grid_response = False
+--------------- KRKS gradients ---------------
+         x                y                z
+0 C     0.0000000001     0.0000000001     0.0010813721
+1 C    -0.0000000001    -0.0000000001    -0.0012004393
+----------------------------------------------
+Discarded 4 diffused primitive functions, 8 contracted functions
+#INFO: **** input file is /home/yang/tmp/run/run.py ****
+#!/usr/bin/env python
+# Copyright 2014-2020 The PySCF Developers. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+from pyscf.pbc import scf, dft, gto, grad, df
+from pyscf.eph.rhf import solve_hmat
+from pyscf.eph.eph_fd import gen_moles
+import numpy as np
+import scipy
+from pyscf.lib import logger
+import copy
+
+def gen_cell(atom):
+    cell = gto.Cell()
+    cell.atom = atom
+    cell.basis = 'gth-tzvp'
+    cell.pseudo = 'gth-pade'
+    cell.a = '''
+    0.000000000, 3.370137329, 3.370137329
+    3.370137329, 0.000000000, 3.370137329
+    3.370137329, 3.370137329, 0.000000000'''
+    cell.unit = 'B'
+    cell.verbose = 4
+    cell.exp_to_discard=0.1
+    cell.precision=1e-12
+    cell.build()
+    return cell
+
+if __name__ == '__main__':
+    disp = 1e-4
+    # this is a cell slightly displaced from equlibrium. 
+    atom_0 =  [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+               ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    cell = gen_cell(atom_0)
+    kpts = cell.make_kpts([1,1,1])
+    mf = dft.KRKS(cell, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    mf.kernel()
+    # computing analytical force
+    force = mf.nuc_grad_method().kernel()
+
+    # displace +/- in the z direction on the 1st C
+    atom_c0_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000+disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    atom_c0_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000-disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    # compute energy for these cells with displacement on 1st C
+    cell_c0_plus = gen_cell(atom_c0_plus)
+    mf = dft.KRKS(cell_c0_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_plus = mf.kernel()
+
+    cell_c0_min = gen_cell(atom_c0_min)
+    mf = dft.KRKS(cell_c0_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_min = mf.kernel()
+    
+    # finite differnce force on 1st C
+    force_c0 = (e_c0_plus-e_c0_min) / disp
+
+    # displace +/- in the z direction on the 2nd C
+    atom_c1_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391+disp/2.0]]]
+
+    atom_c1_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391-disp/2.0]]]
+    
+    # compute energy for these cells with displacement on 2nd C
+    cell_c1_plus = gen_cell(atom_c1_plus)
+    mf = dft.KRKS(cell_c1_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_plus = mf.kernel()
+
+    cell_c1_min = gen_cell(atom_c1_min)
+    mf = dft.KRKS(cell_c1_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_min = mf.kernel()
+    
+    # finite differnce force on 2nd C
+    force_c1 = (e_c1_plus-e_c1_min) / disp
+    print("Analytical force:")
+    print(force)
+    print("===========")
+    print("finite difference",force_c0, force_c1)
+    print("difference with analytical gradients:")
+    print(abs(force_c0-force[0][2]), abs(force_c1-force[1][2]))
+    print("net force within the cell:", force_c0+force_c1)
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='pauling050', release='3.10.0-327.36.3.el7.x86_64', version='#1 SMP Thu Oct 20 04:56:07 EDT 2016', machine='x86_64', processor='x86_64')  Threads 28
+Python 3.7.4 (default, Aug 13 2019, 20:35:49) 
+[GCC 7.3.0]
+numpy 1.19.1  scipy 1.5.2
+Date: Wed Nov 11 15:38:33 2020
+PySCF version 1.7.4
+PySCF path  /home/yang/software/pyscf/pyscf
+GIT HEAD      ref: refs/heads/master
+GIT master branch  da6d2cbd7ce021fb3b5d74baa94c0df9699058d3
+
+[ENV] PYSCF_TMPDIR /scratch/global/yang
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 2
+[INPUT] num. electrons = 8
+[INPUT] charge = 0
+[INPUT] spin (= nelec alpha-beta = 2S) = 0
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = B
+[INPUT]  1 C      0.000000000000   0.000000000000   0.000555636071 AA    0.000000000000   0.000000000000   0.001050000000 Bohr
+[INPUT]  2 C      0.891699936031   0.891699936031   0.891699936031 AA    1.685068664391   1.685068664391   1.685068664391 Bohr
+
+nuclear repulsion = -12.7871295795342
+number of shells = 6
+number of NR pGTOs = 42
+number of NR cGTOs = 18
+basis = gth-tzvp
+ecp = {}
+CPU time:       179.96
+lattice vectors  a1 [0.000000000, 3.370137329, 3.370137329]
+                 a2 [3.370137329, 0.000000000, 3.370137329]
+                 a3 [3.370137329, 3.370137329, 0.000000000]
+dimension = 3
+low_dim_ft_type = None
+Cell volume = 76.5549
+exp_to_discard = 0.1
+rcut = 16.83695699146311 (nimgs = [5 5 5])
+lattice sum = 2197 cells
+precision = 1e-12
+pseudo = gth-pade
+ke_cutoff = 409.624563819746
+    = [36 36 36] mesh (46656 PWs)
+ew_eta = 2.39214
+ew_cut = 3.4310758328450324 (nimgs = [1 1 1])
+
+
+******** <class 'pyscf.pbc.dft.krks.KRKS'> ********
+method = KRKS-KRHF-KSCF-RHF-SCF-RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-14
+SCF conv_tol_grad = 1e-08
+SCF max_cycles = 50
+direct_scf = False
+chkfile to save SCF result = /scratch/global/yang/tmpkcgpywej
+max_memory 4000 MB (current use 661 MB)
+
+
+******** PBC SCF flags ********
+N kpts = 1
+Exchange divergence treatment (exxdiv) = ewald
+    madelung (= occupied orbital energy shift) = 0.6802188793116848
+    Total energy shift due to Ewald probe charge = -1/2 * Nelec*madelung = -2.72087551725
+DF object = <pyscf.pbc.df.fft.FFTDF object at 0x7f4ce854ff10>
+
+
+******** <class 'pyscf.pbc.df.fft.FFTDF'> ********
+mesh = [36 36 36] (46656 PWs)
+len(kpts) = 1
+XC functionals = pbe,pbe
+small_rho_cutoff = 1e-07
+Uniform grid, mesh = [36 36 36]
+init E= -12.337801952164
+HOMO = 0.452810794095  LUMO = 0.667422285924
+cycle= 1 E= -10.3550202943573  delta_E= 1.98  |g|= 0.0588  |ddm|= 3.68
+HOMO = 0.560290045859  LUMO = 0.753743590441
+cycle= 2 E= -10.3561514270432  delta_E= -0.00113  |g|= 0.000782  |ddm|= 0.094
+HOMO = 0.559134205153  LUMO = 0.753071945022
+cycle= 3 E= -10.3561516269092  delta_E= -2e-07  |g|= 1.36e-06  |ddm|= 0.00123
+HOMO = 0.559134325242  LUMO = 0.753072009944
+cycle= 4 E= -10.3561516269091  delta_E= 1.21e-13  |g|= 1.77e-06  |ddm|= 4.01e-06
+HOMO = 0.559134347721  LUMO = 0.753072021983
+cycle= 5 E= -10.3561516269097  delta_E= -6.52e-13  |g|= 7.52e-07  |ddm|= 3.12e-06
+HOMO = 0.559134387451  LUMO = 0.753072043187
+cycle= 6 E= -10.3561516269099  delta_E= -1.42e-13  |g|= 1.81e-09  |ddm|= 9.44e-07
+HOMO = 0.559134387329  LUMO = 0.753072043075
+cycle= 7 E= -10.3561516269099  delta_E= -7.11e-15  |g|= 1.2e-09  |ddm|= 1.64e-09
+HOMO = 0.559134387036  LUMO = 0.753072042828
+Extra cycle  E= -10.3561516269099  delta_E= 8.88e-15  |g|= 1.08e-09  |ddm|= 3.87e-09
+converged SCF energy = -10.3561516269099
+Discarded 4 diffused primitive functions, 8 contracted functions
+#INFO: **** input file is /home/yang/tmp/run/run.py ****
+#!/usr/bin/env python
+# Copyright 2014-2020 The PySCF Developers. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+from pyscf.pbc import scf, dft, gto, grad, df
+from pyscf.eph.rhf import solve_hmat
+from pyscf.eph.eph_fd import gen_moles
+import numpy as np
+import scipy
+from pyscf.lib import logger
+import copy
+
+def gen_cell(atom):
+    cell = gto.Cell()
+    cell.atom = atom
+    cell.basis = 'gth-tzvp'
+    cell.pseudo = 'gth-pade'
+    cell.a = '''
+    0.000000000, 3.370137329, 3.370137329
+    3.370137329, 0.000000000, 3.370137329
+    3.370137329, 3.370137329, 0.000000000'''
+    cell.unit = 'B'
+    cell.verbose = 4
+    cell.exp_to_discard=0.1
+    cell.precision=1e-12
+    cell.build()
+    return cell
+
+if __name__ == '__main__':
+    disp = 1e-4
+    # this is a cell slightly displaced from equlibrium. 
+    atom_0 =  [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+               ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    cell = gen_cell(atom_0)
+    kpts = cell.make_kpts([1,1,1])
+    mf = dft.KRKS(cell, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    mf.kernel()
+    # computing analytical force
+    force = mf.nuc_grad_method().kernel()
+
+    # displace +/- in the z direction on the 1st C
+    atom_c0_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000+disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    atom_c0_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000-disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    # compute energy for these cells with displacement on 1st C
+    cell_c0_plus = gen_cell(atom_c0_plus)
+    mf = dft.KRKS(cell_c0_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_plus = mf.kernel()
+
+    cell_c0_min = gen_cell(atom_c0_min)
+    mf = dft.KRKS(cell_c0_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_min = mf.kernel()
+    
+    # finite differnce force on 1st C
+    force_c0 = (e_c0_plus-e_c0_min) / disp
+
+    # displace +/- in the z direction on the 2nd C
+    atom_c1_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391+disp/2.0]]]
+
+    atom_c1_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391-disp/2.0]]]
+    
+    # compute energy for these cells with displacement on 2nd C
+    cell_c1_plus = gen_cell(atom_c1_plus)
+    mf = dft.KRKS(cell_c1_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_plus = mf.kernel()
+
+    cell_c1_min = gen_cell(atom_c1_min)
+    mf = dft.KRKS(cell_c1_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_min = mf.kernel()
+    
+    # finite differnce force on 2nd C
+    force_c1 = (e_c1_plus-e_c1_min) / disp
+    print("Analytical force:")
+    print(force)
+    print("===========")
+    print("finite difference",force_c0, force_c1)
+    print("difference with analytical gradients:")
+    print(abs(force_c0-force[0][2]), abs(force_c1-force[1][2]))
+    print("net force within the cell:", force_c0+force_c1)
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='pauling050', release='3.10.0-327.36.3.el7.x86_64', version='#1 SMP Thu Oct 20 04:56:07 EDT 2016', machine='x86_64', processor='x86_64')  Threads 28
+Python 3.7.4 (default, Aug 13 2019, 20:35:49) 
+[GCC 7.3.0]
+numpy 1.19.1  scipy 1.5.2
+Date: Wed Nov 11 15:38:38 2020
+PySCF version 1.7.4
+PySCF path  /home/yang/software/pyscf/pyscf
+GIT HEAD      ref: refs/heads/master
+GIT master branch  da6d2cbd7ce021fb3b5d74baa94c0df9699058d3
+
+[ENV] PYSCF_TMPDIR /scratch/global/yang
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 2
+[INPUT] num. electrons = 8
+[INPUT] charge = 0
+[INPUT] spin (= nelec alpha-beta = 2S) = 0
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = B
+[INPUT]  1 C      0.000000000000   0.000000000000   0.000502718350 AA    0.000000000000   0.000000000000   0.000950000000 Bohr
+[INPUT]  2 C      0.891699936031   0.891699936031   0.891699936031 AA    1.685068664391   1.685068664391   1.685068664391 Bohr
+
+nuclear repulsion = -12.7871296670801
+number of shells = 6
+number of NR pGTOs = 42
+number of NR cGTOs = 18
+basis = gth-tzvp
+ecp = {}
+CPU time:       312.06
+lattice vectors  a1 [0.000000000, 3.370137329, 3.370137329]
+                 a2 [3.370137329, 0.000000000, 3.370137329]
+                 a3 [3.370137329, 3.370137329, 0.000000000]
+dimension = 3
+low_dim_ft_type = None
+Cell volume = 76.5549
+exp_to_discard = 0.1
+rcut = 16.83695699146311 (nimgs = [5 5 5])
+lattice sum = 2197 cells
+precision = 1e-12
+pseudo = gth-pade
+ke_cutoff = 409.624563819746
+    = [36 36 36] mesh (46656 PWs)
+ew_eta = 2.39214
+ew_cut = 3.4310758328450324 (nimgs = [1 1 1])
+
+
+******** <class 'pyscf.pbc.dft.krks.KRKS'> ********
+method = KRKS-KRHF-KSCF-RHF-SCF-RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-14
+SCF conv_tol_grad = 1e-08
+SCF max_cycles = 50
+direct_scf = False
+chkfile to save SCF result = /scratch/global/yang/tmpczlvc71k
+max_memory 4000 MB (current use 675 MB)
+
+
+******** PBC SCF flags ********
+N kpts = 1
+Exchange divergence treatment (exxdiv) = ewald
+    madelung (= occupied orbital energy shift) = 0.6802188793116848
+    Total energy shift due to Ewald probe charge = -1/2 * Nelec*madelung = -2.72087551725
+DF object = <pyscf.pbc.df.fft.FFTDF object at 0x7f4cea77af50>
+
+
+******** <class 'pyscf.pbc.df.fft.FFTDF'> ********
+mesh = [36 36 36] (46656 PWs)
+len(kpts) = 1
+XC functionals = pbe,pbe
+small_rho_cutoff = 1e-07
+Uniform grid, mesh = [36 36 36]
+init E= -12.3378019626838
+HOMO = 0.45277970678  LUMO = 0.667449275991
+cycle= 1 E= -10.3550204031904  delta_E= 1.98  |g|= 0.0588  |ddm|= 3.68
+HOMO = 0.56025852589  LUMO = 0.753771291981
+cycle= 2 E= -10.3561515351622  delta_E= -0.00113  |g|= 0.000782  |ddm|= 0.094
+HOMO = 0.559102709617  LUMO = 0.753099621282
+cycle= 3 E= -10.3561517350281  delta_E= -2e-07  |g|= 1.81e-06  |ddm|= 0.00123
+HOMO = 0.559102825507  LUMO = 0.753099683306
+cycle= 4 E= -10.3561517350277  delta_E= 4.65e-13  |g|= 2.52e-06  |ddm|= 5.44e-06
+HOMO = 0.559102846096  LUMO = 0.753099694243
+cycle= 5 E= -10.3561517350292  delta_E= -1.55e-12  |g|= 4.9e-07  |ddm|= 3.73e-06
+HOMO = 0.559102892701  LUMO = 0.753099718924
+cycle= 6 E= -10.3561517350293  delta_E= -5.68e-14  |g|= 2.18e-09  |ddm|= 6.2e-07
+HOMO = 0.559102892517  LUMO = 0.753099718777
+cycle= 7 E= -10.3561517350293  delta_E=    0  |g|= 1.38e-09  |ddm|= 2.05e-09
+HOMO = 0.559102892278  LUMO = 0.753099718579
+Extra cycle  E= -10.3561517350293  delta_E=    0  |g|= 1.05e-09  |ddm|= 4.31e-09
+converged SCF energy = -10.3561517350293
+Discarded 4 diffused primitive functions, 8 contracted functions
+#INFO: **** input file is /home/yang/tmp/run/run.py ****
+#!/usr/bin/env python
+# Copyright 2014-2020 The PySCF Developers. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+from pyscf.pbc import scf, dft, gto, grad, df
+from pyscf.eph.rhf import solve_hmat
+from pyscf.eph.eph_fd import gen_moles
+import numpy as np
+import scipy
+from pyscf.lib import logger
+import copy
+
+def gen_cell(atom):
+    cell = gto.Cell()
+    cell.atom = atom
+    cell.basis = 'gth-tzvp'
+    cell.pseudo = 'gth-pade'
+    cell.a = '''
+    0.000000000, 3.370137329, 3.370137329
+    3.370137329, 0.000000000, 3.370137329
+    3.370137329, 3.370137329, 0.000000000'''
+    cell.unit = 'B'
+    cell.verbose = 4
+    cell.exp_to_discard=0.1
+    cell.precision=1e-12
+    cell.build()
+    return cell
+
+if __name__ == '__main__':
+    disp = 1e-4
+    # this is a cell slightly displaced from equlibrium. 
+    atom_0 =  [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+               ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    cell = gen_cell(atom_0)
+    kpts = cell.make_kpts([1,1,1])
+    mf = dft.KRKS(cell, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    mf.kernel()
+    # computing analytical force
+    force = mf.nuc_grad_method().kernel()
+
+    # displace +/- in the z direction on the 1st C
+    atom_c0_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000+disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    atom_c0_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000-disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    # compute energy for these cells with displacement on 1st C
+    cell_c0_plus = gen_cell(atom_c0_plus)
+    mf = dft.KRKS(cell_c0_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_plus = mf.kernel()
+
+    cell_c0_min = gen_cell(atom_c0_min)
+    mf = dft.KRKS(cell_c0_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_min = mf.kernel()
+    
+    # finite differnce force on 1st C
+    force_c0 = (e_c0_plus-e_c0_min) / disp
+
+    # displace +/- in the z direction on the 2nd C
+    atom_c1_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391+disp/2.0]]]
+
+    atom_c1_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391-disp/2.0]]]
+    
+    # compute energy for these cells with displacement on 2nd C
+    cell_c1_plus = gen_cell(atom_c1_plus)
+    mf = dft.KRKS(cell_c1_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_plus = mf.kernel()
+
+    cell_c1_min = gen_cell(atom_c1_min)
+    mf = dft.KRKS(cell_c1_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_min = mf.kernel()
+    
+    # finite differnce force on 2nd C
+    force_c1 = (e_c1_plus-e_c1_min) / disp
+    print("Analytical force:")
+    print(force)
+    print("===========")
+    print("finite difference",force_c0, force_c1)
+    print("difference with analytical gradients:")
+    print(abs(force_c0-force[0][2]), abs(force_c1-force[1][2]))
+    print("net force within the cell:", force_c0+force_c1)
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='pauling050', release='3.10.0-327.36.3.el7.x86_64', version='#1 SMP Thu Oct 20 04:56:07 EDT 2016', machine='x86_64', processor='x86_64')  Threads 28
+Python 3.7.4 (default, Aug 13 2019, 20:35:49) 
+[GCC 7.3.0]
+numpy 1.19.1  scipy 1.5.2
+Date: Wed Nov 11 15:38:43 2020
+PySCF version 1.7.4
+PySCF path  /home/yang/software/pyscf/pyscf
+GIT HEAD      ref: refs/heads/master
+GIT master branch  da6d2cbd7ce021fb3b5d74baa94c0df9699058d3
+
+[ENV] PYSCF_TMPDIR /scratch/global/yang
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 2
+[INPUT] num. electrons = 8
+[INPUT] charge = 0
+[INPUT] spin (= nelec alpha-beta = 2S) = 0
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = B
+[INPUT]  1 C      0.000000000000   0.000000000000   0.000529177211 AA    0.000000000000   0.000000000000   0.001000000000 Bohr
+[INPUT]  2 C      0.891699936031   0.891699936031   0.891726394892 AA    1.685068664391   1.685068664391   1.685118664391 Bohr
+
+nuclear repulsion = -12.7871296670801
+number of shells = 6
+number of NR pGTOs = 42
+number of NR cGTOs = 18
+basis = gth-tzvp
+ecp = {}
+CPU time:       447.19
+lattice vectors  a1 [0.000000000, 3.370137329, 3.370137329]
+                 a2 [3.370137329, 0.000000000, 3.370137329]
+                 a3 [3.370137329, 3.370137329, 0.000000000]
+dimension = 3
+low_dim_ft_type = None
+Cell volume = 76.5549
+exp_to_discard = 0.1
+rcut = 16.83695699146311 (nimgs = [5 5 5])
+lattice sum = 2197 cells
+precision = 1e-12
+pseudo = gth-pade
+ke_cutoff = 409.624563819746
+    = [36 36 36] mesh (46656 PWs)
+ew_eta = 2.39214
+ew_cut = 3.4310758328450324 (nimgs = [1 1 1])
+
+
+******** <class 'pyscf.pbc.dft.krks.KRKS'> ********
+method = KRKS-KRHF-KSCF-RHF-SCF-RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-14
+SCF conv_tol_grad = 1e-08
+SCF max_cycles = 50
+direct_scf = False
+chkfile to save SCF result = /scratch/global/yang/tmpzj8h30ts
+max_memory 4000 MB (current use 689 MB)
+
+
+******** PBC SCF flags ********
+N kpts = 1
+Exchange divergence treatment (exxdiv) = ewald
+    madelung (= occupied orbital energy shift) = 0.6802188793116848
+    Total energy shift due to Ewald probe charge = -1/2 * Nelec*madelung = -2.72087551725
+DF object = <pyscf.pbc.df.fft.FFTDF object at 0x7f4ce412ae90>
+
+
+******** <class 'pyscf.pbc.df.fft.FFTDF'> ********
+mesh = [36 36 36] (46656 PWs)
+len(kpts) = 1
+XC functionals = pbe,pbe
+small_rho_cutoff = 1e-07
+Uniform grid, mesh = [36 36 36]
+init E= -12.33780196268
+HOMO = 0.452779706781  LUMO = 0.667449275992
+cycle= 1 E= -10.3550204093698  delta_E= 1.98  |g|= 0.0588  |ddm|= 3.68
+HOMO = 0.560258525862  LUMO = 0.753771291971
+cycle= 2 E= -10.3561515414475  delta_E= -0.00113  |g|= 0.000782  |ddm|= 0.094
+HOMO = 0.559102710893  LUMO = 0.753099621617
+cycle= 3 E= -10.3561517413134  delta_E= -2e-07  |g|= 1.59e-06  |ddm|= 0.00123
+HOMO = 0.559102828302  LUMO = 0.753099684473
+cycle= 4 E= -10.3561517413132  delta_E= 2.22e-13  |g|= 2.11e-06  |ddm|= 4.69e-06
+HOMO = 0.559102849265  LUMO = 0.753099695608
+cycle= 5 E= -10.3561517413142  delta_E= -1.05e-12  |g|= 5.66e-07  |ddm|= 3.32e-06
+HOMO = 0.559102893972  LUMO = 0.753099719285
+cycle= 6 E= -10.3561517413143  delta_E= -7.99e-14  |g|= 2.02e-09  |ddm|= 7.13e-07
+HOMO = 0.559102893824  LUMO = 0.75309971916
+cycle= 7 E= -10.3561517413143  delta_E= -1.78e-15  |g|= 1.31e-09  |ddm|= 1.85e-09
+HOMO = 0.559102893543  LUMO = 0.753099718936
+Extra cycle  E= -10.3561517413143  delta_E= -1.78e-15  |g|= 1.57e-09  |ddm|= 4.44e-09
+converged SCF energy = -10.3561517413143
+Discarded 4 diffused primitive functions, 8 contracted functions
+#INFO: **** input file is /home/yang/tmp/run/run.py ****
+#!/usr/bin/env python
+# Copyright 2014-2020 The PySCF Developers. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+from pyscf.pbc import scf, dft, gto, grad, df
+from pyscf.eph.rhf import solve_hmat
+from pyscf.eph.eph_fd import gen_moles
+import numpy as np
+import scipy
+from pyscf.lib import logger
+import copy
+
+def gen_cell(atom):
+    cell = gto.Cell()
+    cell.atom = atom
+    cell.basis = 'gth-tzvp'
+    cell.pseudo = 'gth-pade'
+    cell.a = '''
+    0.000000000, 3.370137329, 3.370137329
+    3.370137329, 0.000000000, 3.370137329
+    3.370137329, 3.370137329, 0.000000000'''
+    cell.unit = 'B'
+    cell.verbose = 4
+    cell.exp_to_discard=0.1
+    cell.precision=1e-12
+    cell.build()
+    return cell
+
+if __name__ == '__main__':
+    disp = 1e-4
+    # this is a cell slightly displaced from equlibrium. 
+    atom_0 =  [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+               ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    cell = gen_cell(atom_0)
+    kpts = cell.make_kpts([1,1,1])
+    mf = dft.KRKS(cell, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    mf.kernel()
+    # computing analytical force
+    force = mf.nuc_grad_method().kernel()
+
+    # displace +/- in the z direction on the 1st C
+    atom_c0_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000+disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    atom_c0_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000-disp/2.0]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391]]]
+
+    # compute energy for these cells with displacement on 1st C
+    cell_c0_plus = gen_cell(atom_c0_plus)
+    mf = dft.KRKS(cell_c0_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_plus = mf.kernel()
+
+    cell_c0_min = gen_cell(atom_c0_min)
+    mf = dft.KRKS(cell_c0_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c0_min = mf.kernel()
+    
+    # finite differnce force on 1st C
+    force_c0 = (e_c0_plus-e_c0_min) / disp
+
+    # displace +/- in the z direction on the 2nd C
+    atom_c1_plus = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391+disp/2.0]]]
+
+    atom_c1_min = [["C", [0.000000000000, 0.000000000000, 0.001000000000]],
+                   ["C", [1.685068664391, 1.685068664391, 1.685068664391-disp/2.0]]]
+    
+    # compute energy for these cells with displacement on 2nd C
+    cell_c1_plus = gen_cell(atom_c1_plus)
+    mf = dft.KRKS(cell_c1_plus, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_plus = mf.kernel()
+
+    cell_c1_min = gen_cell(atom_c1_min)
+    mf = dft.KRKS(cell_c1_min, kpts)
+    mf.xc = 'pbe,pbe'
+    mf.conv_tol = 1e-14
+    mf.conv_tol_grad = 1e-8
+    e_c1_min = mf.kernel()
+    
+    # finite differnce force on 2nd C
+    force_c1 = (e_c1_plus-e_c1_min) / disp
+    print("Analytical force:")
+    print(force)
+    print("===========")
+    print("finite difference",force_c0, force_c1)
+    print("difference with analytical gradients:")
+    print(abs(force_c0-force[0][2]), abs(force_c1-force[1][2]))
+    print("net force within the cell:", force_c0+force_c1)
+#INFO: ******************** input file end ********************
+
+
+System: uname_result(system='Linux', node='pauling050', release='3.10.0-327.36.3.el7.x86_64', version='#1 SMP Thu Oct 20 04:56:07 EDT 2016', machine='x86_64', processor='x86_64')  Threads 28
+Python 3.7.4 (default, Aug 13 2019, 20:35:49) 
+[GCC 7.3.0]
+numpy 1.19.1  scipy 1.5.2
+Date: Wed Nov 11 15:38:48 2020
+PySCF version 1.7.4
+PySCF path  /home/yang/software/pyscf/pyscf
+GIT HEAD      ref: refs/heads/master
+GIT master branch  da6d2cbd7ce021fb3b5d74baa94c0df9699058d3
+
+[ENV] PYSCF_TMPDIR /scratch/global/yang
+[CONFIG] conf_file None
+[INPUT] verbose = 4
+[INPUT] num. atoms = 2
+[INPUT] num. electrons = 8
+[INPUT] charge = 0
+[INPUT] spin (= nelec alpha-beta = 2S) = 0
+[INPUT] symmetry False subgroup None
+[INPUT] Mole.unit = B
+[INPUT]  1 C      0.000000000000   0.000000000000   0.000529177211 AA    0.000000000000   0.000000000000   0.001000000000 Bohr
+[INPUT]  2 C      0.891699936031   0.891699936031   0.891673477171 AA    1.685068664391   1.685068664391   1.685018664391 Bohr
+
+nuclear repulsion = -12.7871295795342
+number of shells = 6
+number of NR pGTOs = 42
+number of NR cGTOs = 18
+basis = gth-tzvp
+ecp = {}
+CPU time:       583.29
+lattice vectors  a1 [0.000000000, 3.370137329, 3.370137329]
+                 a2 [3.370137329, 0.000000000, 3.370137329]
+                 a3 [3.370137329, 3.370137329, 0.000000000]
+dimension = 3
+low_dim_ft_type = None
+Cell volume = 76.5549
+exp_to_discard = 0.1
+rcut = 16.83695699146311 (nimgs = [5 5 5])
+lattice sum = 2197 cells
+precision = 1e-12
+pseudo = gth-pade
+ke_cutoff = 409.624563819746
+    = [36 36 36] mesh (46656 PWs)
+ew_eta = 2.39214
+ew_cut = 3.4310758328450324 (nimgs = [1 1 1])
+
+
+******** <class 'pyscf.pbc.dft.krks.KRKS'> ********
+method = KRKS-KRHF-KSCF-RHF-SCF-RHF
+initial guess = minao
+damping factor = 0
+level_shift factor = 0
+DIIS = <class 'pyscf.scf.diis.CDIIS'>
+diis_start_cycle = 1
+diis_space = 8
+SCF conv_tol = 1e-14
+SCF conv_tol_grad = 1e-08
+SCF max_cycles = 50
+direct_scf = False
+chkfile to save SCF result = /scratch/global/yang/tmpwy70b8wu
+max_memory 4000 MB (current use 695 MB)
+
+
+******** PBC SCF flags ********
+N kpts = 1
+Exchange divergence treatment (exxdiv) = ewald
+    madelung (= occupied orbital energy shift) = 0.6802188793116848
+    Total energy shift due to Ewald probe charge = -1/2 * Nelec*madelung = -2.72087551725
+DF object = <pyscf.pbc.df.fft.FFTDF object at 0x7f4ce412ab10>
+
+
+******** <class 'pyscf.pbc.df.fft.FFTDF'> ********
+mesh = [36 36 36] (46656 PWs)
+len(kpts) = 1
+XC functionals = pbe,pbe
+small_rho_cutoff = 1e-07
+Uniform grid, mesh = [36 36 36]
+init E= -12.3378019521601
+HOMO = 0.452810794094  LUMO = 0.667422285923
+cycle= 1 E= -10.355020288785  delta_E= 1.98  |g|= 0.0588  |ddm|= 3.68
+HOMO = 0.560290045889  LUMO = 0.753743590451
+cycle= 2 E= -10.3561514213638  delta_E= -0.00113  |g|= 0.000782  |ddm|= 0.094
+HOMO = 0.559134204199  LUMO = 0.753071944776
+cycle= 3 E= -10.3561516212299  delta_E= -2e-07  |g|= 1.58e-06  |ddm|= 0.00123
+HOMO = 0.559134322206  LUMO = 0.753072008557
+cycle= 4 E= -10.3561516212296  delta_E= 3.14e-13  |g|= 2.18e-06  |ddm|= 4.76e-06
+HOMO = 0.559134343649  LUMO = 0.753072020045
+cycle= 5 E= -10.3561516212307  delta_E= -1.09e-12  |g|= 6.49e-07  |ddm|= 3.5e-06
+HOMO = 0.559134386501  LUMO = 0.753072042921
+cycle= 6 E= -10.3561516212308  delta_E= -1.1e-13  |g|= 1.99e-09  |ddm|= 8.17e-07
+HOMO = 0.55913438636  LUMO = 0.753072042795
+cycle= 7 E= -10.3561516212308  delta_E=    0  |g|= 1.3e-09  |ddm|= 1.77e-09
+HOMO = 0.55913438609  LUMO = 0.753072042565
+Extra cycle  E= -10.3561516212308  delta_E= 1.78e-15  |g|= 1.35e-09  |ddm|= 4.27e-09
+converged SCF energy = -10.3561516212308
+Analytical force:
+[[ 1.31023855e-10  1.30983851e-10  1.08137214e-03]
+ [-1.30465060e-10 -1.30463413e-10 -1.20043928e-03]]
+===========
+finite difference 0.0010811941386634771 -0.0012008352356929208
+difference with analytical gradients:
+1.7799761298882208e-07 3.9595587870088454e-07
+net force within the cell: -0.0001196410970294437
